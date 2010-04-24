@@ -61,15 +61,11 @@ been constructed, one will be by calling C<< Dist::Zilla->from_config >>.
 
 =cut
 
-sub logger {
+sub chrome {
   my ($self) = @_;
-  $self->{__logger__} ||= Log::Dispatchouli->new({
-    ident     => 'Dist::Zilla',
-    to_stdout => 1,
-    log_pid   => 0,
-    to_self   => ($ENV{DZIL_TESTING} ? 1 : 0),
-    quiet_fatal => 'stdout',
-  });
+  require Dist::Zilla::Chrome::Term;
+
+  $self->{__chrome__} ||= Dist::Zilla::Chrome::Term->new;
 }
 
 sub zilla {
@@ -84,21 +80,24 @@ sub zilla {
 
     my $verbose = $self->global_options->verbose && ! @v_plugins;
 
-    $self->logger->set_debug($verbose ? 1 : 0);
+    $self->chrome->logger->set_debug($verbose ? 1 : 0);
 
     my $core_debug = grep { m/\A[-_]\z/ } @v_plugins;
 
     my $zilla = Dist::Zilla->from_config({
-      chrome => $self,
+      chrome => $self->chrome,
     });
 
     $zilla->logger->set_debug($verbose ? 1 : 0);
 
     VERBOSE_PLUGIN: for my $plugin_name (grep { ! m{\A[-_]\z} } @v_plugins) {
-      $zilla->log_fatal("can't find plugin $plugin_name to set debug mode")
-        unless my $plugin = $zilla->plugin_named($plugin_name);
+      my @plugins = grep { $_->plugin_name =~ /\b\Q$plugin_name\E\b/ }
+                    $zilla->plugins->flatten;
 
-      $plugin->logger->set_debug(1);
+      $zilla->log_fatal("can't find plugins matching $plugin_name to set debug")
+        unless @plugins;
+
+      $_->logger->set_debug(1) for @plugins;
     }
 
     $zilla;
