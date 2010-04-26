@@ -22,14 +22,14 @@ sub add_file {
   my ($self, $file) = @_;
   my ($pkg, undef, $line) = caller;
 
-  $file->meta->get_attribute('added_by')->set_value($file, "$pkg line $line");
-  $self->log_debug([ 'adding file %s', $file->name ]) if $self->__log_inject;
+  $file->meta->get_attribute('added_by')->set_value(
+    $file,
+    sprintf("%s (%s line %s)", $self->plugin_name, $pkg, $line),
+  );
+
+  $self->log_debug([ 'adding file %s', $file->name ]);
   $self->zilla->files->push($file);
 }
-
-# Total hack to work around adding 234249018 files in .git only to remove them
-# later.  Will fix more elegantly later. -- rjbs, 2010-04-09
-sub __log_inject { 1 }
 
 no Moose::Role;
 1;

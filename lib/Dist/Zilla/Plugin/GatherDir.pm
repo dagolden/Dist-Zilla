@@ -42,10 +42,6 @@ has include_dotfiles => (
   default => 0,
 );
 
-# Total hack to work around adding 234249018 files in .git only to remove them
-# later.  Will fix more elegantly later. -- rjbs, 2010-04-09
-sub __log_inject { 0 }
-
 sub gather_files {
   my ($self) = @_;
 
@@ -54,8 +50,13 @@ sub gather_files {
   $root = Path::Class::dir($root);
 
   my @files;
-  for my $filename (File::Find::Rule->file->in($root)) {
-    next if ! $self->include_dotfiles and file($filename)->basename =~ qr/^\./;
+  FILE: for my $filename (File::Find::Rule->file->in($root)) {
+    unless ($self->include_dotfiles) {
+      my $file = file($filename);
+      next FILE if $file->basename =~ qr/^\./;
+      next FILE if grep { /^\.[^.]/ } $file->dir->dir_list;
+    }
+
     push @files, Dist::Zilla::File::OnDisk->new({
       name => $filename,
       mode => (stat $filename)[2] & 0755, # kill world-writeability
