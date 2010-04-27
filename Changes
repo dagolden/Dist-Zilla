@@ -1,8 +1,22 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
-          GatherDir skips dot-directories if skipping dotfiles
+
+2.101160  2010-04-26 19:51:52 America/New_York
+          `dzil new` now does nothing and says so
+
+          dzil commands will not create a zilla object just for logging
+
+          easy bundles will less often create names with @@ in them
+
+2.101151  2010-04-25 23:40:28 America/New_York
           GatherDir and PruneCruft now both have verbose log output
+
+          the App config system has been moved and made non-public; it was
+          crazy and awful
+
+          version numbers are not validated by version.pm, not my own dumb
+          regex
 
           `dzil clean` no longer removes backup~ files (sorry, jq)
 

@@ -1060,6 +1060,42 @@ around dump_config => sub {
   return $config;
 };
 
+sub _global_config {
+  my ($self) = @_;
+
+  my $homedir = File::HomeDir->my_home
+    or Carp::croak("couldn't determine home directory");
+
+  my $file = Path::Class::dir($homedir)->file('.dzil');
+  return unless -e $file;
+
+  if (-d $file) {
+    return Dist::Zilla::Config::Finder->new->read_config({
+      root     =>  Path::Class::dir($homedir)->subdir('.dzil'),
+      basename => 'config',
+    });
+  } else {
+    return Dist::Zilla::Config::Finder->new->read_config({
+      root     => Path::Class::dir($homedir),
+      filename => '.dzil',
+    });
+  }
+}
+
+sub _global_config_for {
+  my ($self, $plugin_class) = @_;
+
+  return {} unless my $global_config = $self->_global_config;
+
+  my ($section) = grep { ($_->package||'') eq $plugin_class }
+                  $global_config->sections;
+
+  return {} unless $section;
+
+  return $section->payload;
+}
+
+
 __PACKAGE__->meta->make_immutable;
 1;
 __END__
@@ -1069,11 +1105,7 @@ __END__
 There are usually people on C<irc.perl.org> in C<#distzilla>, even if they're
 idling.
 
-There is a mailing list to discuss Dist::Zilla, which you can join here:
-
-L<http://www.listbox.com/subscribe/?list_id=139292>
-
-The archive is available here:
-
-L<http://listbox.com/member/archive/139292>
+There is a mailing list to discuss Dist::Zilla.  You can L<join the
+list|http://www.listbox.com/subscribe/?list_id=139292> or L<browse the
+archives|http://listbox.com/member/archive/139292>.
 
