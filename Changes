@@ -2,6 +2,39 @@ Revision history for {{$dist->name}}
 
 {{$NEXT}}
 
+2.101310  2010-05-11 09:02:45 America/New_York
+          update_filename arg added to NextRelease
+          `dzil new` can now be given a module name instead of dist name
+          PkgVersion will only declare $VERSION once per package in a file
+
+2.101290  2010-05-09 18:43:02 America/New_York
+          added GatherDir::Template (for use in dzil new profiles)
+          GatherDir will skip dot-dirs when excluding dotfiles
+
+2.101241  2010-05-04 22:51:31 America/New_York
+          tests should now pass on Win32
+
+          (these changes all thanks to APOCAL)
+          add GenerateFile plugin
+          make PodSyntaxTests require a newer, less-broken Test::Pod
+          sort and indent keys of args written to Makefile.PL and Build.PL
+          add %n and %t for \n and \t to NextRelease
+
+2.101240  2010-05-04 07:46:47 America/New_York
+          remove a 5.12 specific hunk of syntax (...) (thanks, BRICAS)
+
+2.101230  2010-05-03 23:42:27 America/New_York
+          NextRelease now has a time_zone parameter (thanks, APOCAL)
+
+          add a `dzil listdeps` command based on MARCEL's work (thanks, Robin
+            Smidsrød)
+
+          the new `dzil new` does stuff, but is not documented
+
+          add a "user" parameter to FakeRelease (David Golden)
+
+          minor documentation improvements here and there
+
 2.101170  2010-04-27 09:59:11 America/New_York
           fix a bug that broke dists with multiple - in their name
 
