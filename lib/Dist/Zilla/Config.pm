@@ -2,9 +2,7 @@ package Dist::Zilla::Config;
 use Moose::Role;
 # ABSTRACT: stored configuration loader role
 
-use Config::MVP 0.100780; # fix mvp_* method laziness
-
-with q(Config::MVP::Reader) => { -excludes => 'build_assembler' };
+use Config::MVP 2; # finalization and what not
 
 use Dist::Zilla::Util::MVPAssembler;
 

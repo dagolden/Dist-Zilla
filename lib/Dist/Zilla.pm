@@ -4,10 +4,12 @@ use Moose 0.92; # role composition fixes
 with 'Dist::Zilla::Role::ConfigDumper';
 
 use Moose::Autobox 0.09; # ->flatten
-use Dist::Zilla::Types qw(DistName License VersionStr);
 use MooseX::Types::Moose qw(Bool HashRef);
+use MooseX::Types::Perl qw(DistName LaxVersionStr);
 use MooseX::Types::Path::Class qw(Dir File);
 use Moose::Util::TypeConstraints;
+
+use Dist::Zilla::Types qw(License);
 
 use Archive::Tar;
 use File::Find::Rule;
@@ -18,7 +20,7 @@ use List::Util qw(first);
 use Log::Dispatchouli 1.100712; # proxy_loggers, quiet_fatal
 use Params::Util qw(_HASHLIKE);
 use Path::Class;
-use Software::License;
+use Software::License 0.101370; # meta2_name
 use String::RewritePrefix;
 
 use Dist::Zilla::Prereqs;
@@ -77,7 +79,7 @@ has version_override => (
 # XXX: *clearly* this needs to be really much smarter -- rjbs, 2008-06-01
 has version => (
   is   => 'rw',
-  isa  => VersionStr,
+  isa  => LaxVersionStr,
   lazy => 1,
   init_arg  => undef,
   required  => 1,
@@ -400,17 +402,18 @@ sub _build_distmeta {
 
   my $meta = {
     'meta-spec' => {
-      version => 1.4,
-      url     => 'http://module-build.sourceforge.net/META-spec-v1.4.html',
+      version => 2,
+      url     => 'http://github.com/dagolden/cpan-meta/',
     },
     name     => $self->name,
     version  => $self->version,
     abstract => $self->abstract,
     author   => $self->authors,
-    license  => $self->license->meta_yml_name,
-    generated_by => (ref $self)
-                  . ' version '
-                  . (defined $self->VERSION ? $self->VERSION : '(undef)')
+    license  => $self->license->meta2_name,
+    dynamic_config => 0,
+    generated_by   => (ref $self)
+                    . ' version '
+                    . (defined $self->VERSION ? $self->VERSION : '(undef)')
   };
 
   $meta = Hash::Merge::Simple::merge($meta, $_->metadata)
@@ -419,18 +422,14 @@ sub _build_distmeta {
   return $meta;
 }
 
-=attr prereq
+=attr prereqs
 
-This is a hashref of module prerequisites.  This attribute is likely to get
-greatly overhauled, or possibly replaced with a method based on other
-(private?) attributes.
-
-I<Actually>, it is more likely that this attribute will contain an object in
-the future.
+This is a L<Dist::Zilla::Prereqs> object, which is a thin layer atop
+L<CPAN::Meta::Prereqs>, and describes the distribution's prerequisites.
 
 =cut
 
-has prereq => (
+has prereqs => (
   is   => 'ro',
   isa  => 'Dist::Zilla::Prereqs',
   init_arg => undef,
@@ -467,6 +466,7 @@ sub from_config {
   my $core_config = $seq->section_named('_')->payload;
 
   my $self = $class->new({
+    root   => $root,
     %$core_config,
     chrome => $arg->{chrome},
   });
@@ -601,14 +601,7 @@ sub _load_config {
   );
 
   my $root = $arg->{root};
-  my ($sequence) = $config_class->new->read_config({
-    root     => $root,
-    basename => 'dist',
-  });
-
-  # I wonder if the root should be named '' or something, but that's probably
-  # sort of a ridiculous thing to worry about. -- rjbs, 2009-08-24
-  $sequence->section_named('_')->add_value(root => $root);
+  my ($sequence) = $config_class->new->read_config( $root->file('dist') );
 
   return $sequence;
 }
@@ -721,11 +714,10 @@ sub build_in {
 
   $_->register_prereqs for $self->plugins_with(-PrereqSource)->flatten;
 
-  $self->prereq->finalize;
+  $self->prereqs->finalize;
 
-  my $meta   = $self->distmeta;
-  my $prereq = $self->prereq->as_distmeta;
-  $meta->{ $_ } = $prereq->{ $_ } for keys %$prereq;
+  # Barf if someone has already set up a prereqs entry? -- rjbs, 2010-04-13
+  $self->distmeta->{prereqs} = $self->prereqs->as_string_hash;
 
   $_->setup_installer for $self->plugins_with(-InstallTool)->flatten;
 
@@ -929,8 +921,10 @@ sub install {
     my $wd = File::pushd::pushd($target);
     my @cmd = $arg->{install_command}
             ? $arg->{install_command}
-            : ($^X => '-MCPAN' => '-einstall "."');
+            : ($^X => '-MCPAN' =>
+                $^O eq 'MSWin32' ? q{-e"install '.'"} : '-einstall "."');
 
+    $self->log_debug([ 'installing via %s', \@cmd ]);
     system(@cmd) && $self->log_fatal([ "error running %s", \@cmd ]);
   };
 
@@ -1005,6 +999,13 @@ sub run_tests_in {
 
 =method run_in_build
 
+  $zilla->run_in_build(\@cmd);
+
+This method makes a temporary directory, builds the distribution there,
+executes the dist's first L<BuildRunner|Dist::Zilla::Role::BuildRunner>, and
+then runs the given command in the build directory.  If the command exits
+non-zero, the directory will be left in place.
+
 =cut
 
 sub run_in_build {
@@ -1050,11 +1051,18 @@ sub run_in_build {
   }
 }
 
-=method log
+=attr logger
 
-  $zilla->log($message);
+This attribute stores a L<Log::Dispatchouli::Proxy> object, used to log
+messages.  By default, a proxy to the dist's L<Chrome|Dist::Zilla::Chrome> is
+taken.
 
-This method logs the given message.
+The following methods are delegated from the Dist::Zilla object to the logger:
+
+=for :list
+* log
+* log_debug
+* log_fatal
 
 =cut
 
@@ -1088,19 +1096,11 @@ sub _global_config {
     or Carp::croak("couldn't determine home directory");
 
   my $file = dir($homedir)->file('.dzil');
-  return unless -e $file;
+  return unless -e $file and -d $file;
 
-  if (-d $file) {
-    return Dist::Zilla::Config::Finder->new->read_config({
-      root     =>  dir($homedir)->subdir('.dzil'),
-      basename => 'config',
-    });
-  } else {
-    return Dist::Zilla::Config::Finder->new->read_config({
-      root     => dir($homedir),
-      filename => '.dzil',
-    });
-  }
+  return Dist::Zilla::Config::Finder->new->read_config(
+    dir($homedir)->subdir('.dzil')->file('config')
+  );
 }
 
 sub _global_config_for {
@@ -1142,10 +1142,9 @@ sub _new_from_profile {
       "no default dist minting profile available"
     );
   } else {
-    ($sequence) = $config_class->new->read_config({
-      root     => $profile_dir->subdir($profile_name),
-      basename => 'profile',
-    });
+    ($sequence) = $config_class->new->read_config(
+      $profile_dir->subdir($profile_name)->file('profile'),
+    );
   }
 
   my $self = $class->new({

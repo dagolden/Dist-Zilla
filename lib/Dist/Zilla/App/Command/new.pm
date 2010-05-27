@@ -12,11 +12,13 @@ Creates a new Dist-Zilla based distribution under the current directory.
 
 =cut
 
-use Dist::Zilla::Types qw(DistName ModuleName);
+use MooseX::Types::Perl qw(DistName ModuleName);
 use Moose::Autobox;
 use Path::Class;
 
 sub abstract { 'start a new dist' }
+
+sub usage_desc { '%c %o <DistName>' }
 
 sub validate_args {
   my ($self, $opt, $args) = @_;
