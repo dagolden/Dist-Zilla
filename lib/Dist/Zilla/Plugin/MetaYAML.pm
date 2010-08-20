@@ -57,6 +57,7 @@ sub gather_files {
   my $file  = Dist::Zilla::File::FromCode->new({
     name => $self->filename,
     code => sub {
+      $zilla->refresh_distmeta;
       my $distmeta  = $zilla->distmeta;
 
       my $validator = CPAN::Meta::Validator->new($distmeta);

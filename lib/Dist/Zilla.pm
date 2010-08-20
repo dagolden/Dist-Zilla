@@ -429,7 +429,9 @@ has plugins => (
 
 This is a hashref containing the metadata about this distribution that will be
 stored in META.yml or META.json.  You should not alter the metadata in this
-hash; use a MetaProvider plugin instead.
+hash; use a MetaProvider plugin instead.  The metadata is assembled lazily when
+C<distmeta> is first called, but it can be refreshed again later with the
+C<refresh_distmeta> method;
 
 =cut
 
@@ -473,6 +475,18 @@ sub _build_distmeta {
 }
 
 sub _metadata_generator_id { 'Dist::Zilla' }
+
+=method refresh_distmeta
+
+Re-initializes the C<distmeta> attribute by calling all MetaProvider
+plugins.
+
+=cut
+
+sub refresh_distmeta {
+  my ($self) = @_;
+  return $self->{distmeta} = $self->_build_distmeta;
+}
 
 =attr prereqs
 
