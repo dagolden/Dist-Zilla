@@ -29,7 +29,7 @@ has '+name'    => (default => '_');
 
 has '+aliases' => (default => sub { return { author => 'authors' } });
 
-has '+multivalue_args' => (default => sub { [ qw(authors) ] });
+has '+multivalue_args' => (default => sub { [ qw(authors license) ] });
 
 has zilla => (
   is     => 'ro',

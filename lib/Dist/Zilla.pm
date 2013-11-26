@@ -226,41 +226,37 @@ has main_module => (
   },
 );
 
-=attr license
+=attr licenses
 
-This is the L<Software::License|Software::License> object for this dist's
-license and copyright.
+These is an array of L<Software::License|Software::License> objects for this dist's
+licenses and copyright.
 
-It will be created automatically, if possible, with the
-C<copyright_holder> and C<copyright_year> attributes.  If necessary, it will
-try to guess the license from the POD of the dist's main module.
+It will be created automatically, if possible, with the C<copyright_holder> and
+C<copyright_year> attributes.  If necessary, it will try to guess the license
+from the POD of the dist's main module.
 
 A better option is to set the C<license> name in the dist's config to something
 understandable, like C<Perl_5>.
 
 =cut
 
-has license => (
+has licenses => (
   is   => 'ro',
-  isa  => License,
+  isa  => ArrayRef[License],
   lazy => 1,
-  init_arg  => 'license_obj',
-  predicate => '_has_license',
-  builder   => '_build_license',
-  handles   => {
-    copyright_holder => 'holder',
-    copyright_year   => 'year',
-  },
+  init_arg  => 'license_objs',
+  predicate => '_has_licenses',
+  builder   => '_build_licenses',
 );
 
-sub _build_license {
+sub _build_licenses {
   my ($self) = @_;
 
-  my $license_class    = $self->_license_class;
+  my $license_classes  = $self->_license_classes;
   my $copyright_holder = $self->_copyright_holder;
   my $copyright_year   = $self->_copyright_year;
 
-  my $provided_license;
+  my $provided_licenses = [];
 
   for my $plugin ($self->plugins_with(-LicenseProvider)->flatten) {
     my $this_license = $plugin->provide_license({
@@ -270,22 +266,23 @@ sub _build_license {
 
     next unless defined $this_license;
 
-    $self->log_fatal('attempted to set license twice')
-      if defined $provided_license;
-
-    $provided_license = $this_license;
+    push @$provided_licenses, $this_license;
   }
 
-  return $provided_license if defined $provided_license;
+  return $provided_licenses if @$provided_licenses;
 
-  if ($license_class) {
-    $license_class = String::RewritePrefix->rewrite(
-      {
-        '=' => '',
-        ''  => 'Software::License::'
-      },
-      $license_class,
-    );
+  if ($license_classes) {
+    $license_classes = [
+      map {
+        String::RewritePrefix->rewrite(
+          {
+            '=' => '',
+            ''  => 'Software::License::'
+          },
+          $_
+        );
+      } @$license_classes
+    ];
   } else {
     require Software::LicenseUtils;
     my @guess = Software::LicenseUtils->guess_license_from_pod(
@@ -301,33 +298,63 @@ sub _build_license {
     }
 
     my $filename = $self->main_module->name;
-    $license_class = $guess[0];
+    $license_classes = [ $guess[0] ];
     $self->log("based on POD in $filename, guessing license is $guess[0]");
   }
 
-  Class::Load::load_class($license_class);
+  for my $license_class ( @$license_classes ) {
+    Class::Load::load_class($license_class);
 
-  my $license = $license_class->new({
-    holder => $self->_copyright_holder,
-    year   => $self->_copyright_year,
-  });
+    my $license = $license_class->new({
+      holder => $self->_copyright_holder,
+      year   => $self->_copyright_year,
+    });
 
-  $self->_clear_license_class;
+    push @$provided_licenses, $license;
+
+  }
+
+  $self->_clear_license_classes;
   $self->_clear_copyright_holder;
   $self->_clear_copyright_year;
 
-  return $license;
+  return $provided_licenses;
 }
 
-has _license_class => (
+=attr license
+
+This is a shortcut to retrieve the first license in the list of licenses.
+It is kept for backwards compatibility.
+
+=cut
+
+has license => (
+  is   => 'ro',
+  isa  => License,
+  init_arg => undef,
+  lazy => 1,
+  predicate => '_has_license',
+  builder   => '_build_license',
+  handles   => {
+    copyright_holder => 'holder',
+    copyright_year   => 'year',
+  },
+);
+
+sub _build_license {
+  my ($self) = @_;
+  return $self->licenses->[0];
+}
+
+has _license_classes => (
   is        => 'ro',
-  isa       => 'Maybe[Str]',
+  isa       => 'Maybe[ArrayRef[Str]]',
   lazy      => 1,
   init_arg  => 'license',
-  clearer   => '_clear_license_class',
+  clearer   => '_clear_license_classes',
   default   => sub {
     my $stash = $_[0]->stash_named('%Rights');
-    $stash && return $stash->license_class;
+    $stash && return [ $stash->license_class ];
     return;
   }
 );
@@ -502,7 +529,7 @@ sub _build_distmeta {
     version  => $self->version,
     abstract => $self->abstract,
     author   => $self->authors,
-    license  => [ $self->license->meta2_name ],
+    license  => [ map { $_->meta2_name } @{ $self->licenses } ],
 
     # XXX: what about unstable?
     release_status => ($self->is_trial or $self->version =~ /_/)
