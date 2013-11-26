@@ -354,7 +354,7 @@ has _license_classes => (
   clearer   => '_clear_license_classes',
   default   => sub {
     my $stash = $_[0]->stash_named('%Rights');
-    $stash && return [ $stash->license_class ];
+    $stash && return $stash->license_class;
     return;
   }
 );

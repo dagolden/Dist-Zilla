@@ -5,9 +5,11 @@ with 'Dist::Zilla::Role::Stash';
 
 use namespace::autoclean;
 
+sub mvp_multivalue_args { qw/license_class/ }
+
 has license_class => (
   is  => 'ro',
-  isa => 'Str',
+  isa => 'ArrayRef[Str]',
   required => 1,
 );
 
