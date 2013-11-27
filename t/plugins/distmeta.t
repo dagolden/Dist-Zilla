@@ -177,4 +177,51 @@ use YAML::Tiny;
   }
 }
 
+{ # multi-license
+  my $tzil = Builder->from_config(
+    {
+      dist_root => 'corpus/dist/DZT',
+    },
+    {
+      add_files => {
+        'source/dist.ini' => simple_ini(
+          {
+            license => [ qw/Perl_5 BSD/ ],
+          },
+          'GatherDir',
+          'MetaJSON',
+          'MetaYAML',
+        ),
+      },
+    },
+  );
+
+  $tzil->build;
+
+  my @files = map {; $_->name } @{ $tzil->files };
+
+  my %meta;
+
+  my $json = $tzil->slurp_file('build/META.json');
+  $meta{json} = JSON->new->decode($json);
+
+  my $yaml = $tzil->slurp_file('build/META.yml');
+  $meta{yaml} = YAML::Tiny->new->read_string($yaml)->[0];
+
+  is_deeply(
+    $meta{json}{license},
+    [
+      'perl_5',
+      'bsd',
+    ],
+    "v2 licenses are set as expected",
+  );
+
+  # v1.4 only supports strings and CPAN::Meta::Converter currently downgrades
+  # multiple license fields to 'unknown' -- xdg, 2013-11-26
+  is( $meta{yaml}{license}, 'unknown', "v1.4 licenses are set as expected");
+}
+
+
+
 done_testing;
