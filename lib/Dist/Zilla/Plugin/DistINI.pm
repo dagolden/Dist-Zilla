@@ -74,17 +74,20 @@ sub gather_files {
   my $code = sub {
     my @core_attrs = qw(name authors copyright_holder);
 
-    my $license = ref $zilla->license;
-    if ($license =~ /^Software::License::(.+)$/) {
-      $license = $1;
-    } else {
-      $license = "=$license";
+    my @licenses;
+    for my $license_obj ( @{ $zilla->licenses } ) {
+      my $license = ref $license_obj;
+      if ($license =~ /^Software::License::(.+)$/) {
+        push @licenses, $1;
+      } else {
+        push @licenses, "=$license";
+      }
     }
 
     my $content = '';
     $content .= sprintf "name    = %s\n", $zilla->name;
     $content .= sprintf "author  = %s\n", $_ for @{ $zilla->authors };
-    $content .= sprintf "license = %s\n", $license;
+    $content .= sprintf "license = %s\n", $_ for @licenses;
     $content .= sprintf "copyright_holder = %s\n", $zilla->copyright_holder;
     $content .= sprintf "copyright_year   = %s\n", (localtime)[5] + 1900;
     $content .= "\n";
